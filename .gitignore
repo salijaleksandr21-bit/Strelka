@@ -1,0 +1,15 @@
+.venv
+venv
+__pycache__
+
+.output
+.data
+.nuxt
+.nitro
+.cache
+dist
+node_modules
+logs
+*.log
+.DS_store
+.env
