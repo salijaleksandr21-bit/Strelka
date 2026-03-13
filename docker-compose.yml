@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=database
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    restart: always
+    depends_on:
+      - db
+    environment:
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=database
+      - POSTGRES_PORT=5432
+      - POSTGRES_HOST=db
+      - WEB_HOST=0.0.0.0
+      - API_PORT=8000
+      - PYTHONPATH=/backend
+    ports:
+      - "${API_PORT}:${API_PORT}"
+    command: 
+      - sh 
+      - -c 
+      - "python database/main.py && uvicorn main:app --host ${WEB_HOST} --port ${API_PORT}"
+
+  # frontend:
+  #   build: ./frontend
+  #   depends_on:
+  #     - db
+  #     - backend
+  #   environment:
+  #     - FRONT_PORT=3000
+  #     - API_URL=http://localhost:${API_PORT}/
+  #   ports:
+  #     - "${FRONT_PORT}:${FRONT_PORT}"
+  #   command: npm run dev
