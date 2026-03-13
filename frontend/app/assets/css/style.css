@@ -1,0 +1,154 @@
+:root {
+    --main: #1fb29f;
+    --second: #673977;
+    --text: #f0f0f0;
+    --text-second: #6e6e6e;
+    --font-family: Gilroy, Arial, sans-serif;
+}
+
+* {
+    font-family: var(--font-family);
+    margin: 0;
+    padding: 0;
+    color: var(--text);
+}
+
+body {
+    background-color: var(--second);
+}
+
+nav {
+    display: flex;
+    width: calc(100vw - 60px);
+    margin: 0 30px 35px;
+    justify-content: space-between;
+    align-items: center;
+}
+
+nav img {
+    height: 130px;
+}
+
+h1 {
+    font-size: 72px;
+}
+
+h2 {
+    font-size: 36px;
+}
+
+.quotes {
+    width: calc(100vw - 130px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.card {
+    width: 100%;
+    background-color: var(--text);
+    margin-left: 35px;
+    margin-bottom: 15px;
+    padding: 20px 0 30px 40px;
+    border-radius: 35px;
+}
+
+.card h2 {
+    color: var(--main);
+    font-weight: bold;
+    margin-bottom: 20px;
+}
+
+.card p {
+    color: var(--text-second);
+}
+
+.control {
+    display: flex;
+    width: calc(100vw - 90px);
+    margin-left: 35px;
+    margin-bottom: 35px;
+    gap: 15px;
+}
+
+.control input[type=text] {
+    flex: 1;
+    height: 75px;
+    outline: none;
+    border: none;
+    padding-left: 35px;
+    border-radius: 35px;
+    background-color: var(--main);
+    font-size: 24px;
+}
+
+.control input[type=text]::placeholder {
+    color: color-mix(in hsl, var(--text), #b4b4b4);
+    font-size: 24px;
+}
+
+.control a {
+    transition: all .3s ease-in-out;
+    align-self: center;
+    text-decoration: none;
+    font-size: 24px;
+    border: 1px solid var(--main);
+    padding: 20px 35px;
+    border-radius: 35px;
+}
+
+.control a:hover {
+    border: 1px solid transparent;
+    background-color: var(--main);
+}
+
+.books {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    margin-left: 25px;
+    margin-right: 55px;
+    gap: 40px;
+}
+
+.book {
+    padding: 15px 40px;
+    border-radius: 35px;
+    background-color: var(--text);
+}
+
+.book h2 {
+    color: var(--main);
+    margin-bottom: 10px;
+    border-radius: 35px;
+}
+
+.book p {
+    color: var(--text-second);
+}
+
+.buttons {
+    display: flex;
+    width: 100%;
+    justify-content: end;
+    gap: 10px;
+}
+
+.btn {
+    padding: 8px 10px;
+    border-radius: 5px;
+    background-color: var(--main);
+    color: var(--text);
+    transition: all .3s ease-in-out;
+}
+
+.btn:nth-child(2) {
+    background-color: var(--second);
+}
+
+.btn:hover {
+    background-color: color-mix(in hsl, var(--main), #808080);
+}
+
+.btn:nth-child(2):hover {
+    background-color: color-mix(in hsl, var(--second), #808080);
+}
