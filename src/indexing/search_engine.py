@@ -25,7 +25,7 @@ class SearchEngine:
         self,
         index_dir: str,
         embedding_model_name: str = 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
-        qa_model_name: str = 'DeepPavlov/rubert-base-cased-squad',
+        qa_model_name: str = 'sad-bkt/rubert-finetuned-squad',
         device: Optional[str] = None,
         lazy_loading: bool = True,
     ):
