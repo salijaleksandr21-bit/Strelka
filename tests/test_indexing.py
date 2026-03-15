@@ -50,40 +50,62 @@ def create_test_chunks(tmp_dir: str) -> str:
 
 
 def main():
-    # Вместо создания временной директории, используем существующий файл
-    chunks_path = 'путь/к/вашему/chunks_output.json'  # укажите правильный путь
-    index_dir = 'data/index_real'  # папка, куда сохранится индекс
+    # Создаём временную директорию для данных
+    tmp_dir = tempfile.mkdtemp(prefix="test_indexing_")
+    try:
+        # 1. Создаём тестовые чанки
+        chunks_path = create_test_chunks(tmp_dir)
+        index_dir = os.path.join(tmp_dir, 'index')
 
-    print("=" * 60)
-    print("Тестирование модуля индексации на реальных данных")
-    print("=" * 60)
+        print("=" * 60)
+        print("Тестирование модуля индексации")
+        print("=" * 60)
 
-    # Если индекс ещё не построен
-    if not os.path.exists(os.path.join(index_dir, 'faiss.index')):
-        print("\n>>> Построение индекса...")
-        build_and_save_index(chunks_path, index_dir, batch_size=32)
-        print("Индекс построен и сохранён.")
-    else:
-        print("\n>>> Индекс уже существует, пропускаем построение.")
+        # 2. Строим индекс (если ещё не построен)
+        if not os.path.exists(os.path.join(index_dir, 'faiss.index')):
+            print("\n>>> Построение индекса...")
+            build_and_save_index(chunks_path, index_dir, batch_size=2)
+            print("Индекс построен и сохранён.")
+        else:
+            print("\n>>> Индекс уже существует, пропускаем построение.")
 
-    # Загружаем поисковый движок
-    print("\n>>> Загрузка SearchEngine...")
-    engine = SearchEngine(index_dir)
+        # 3. Загружаем поисковый движок
+        print("\n>>> Загрузка SearchEngine...")
+        engine = SearchEngine(index_dir)
 
-    # Далее можно выполнять поиск и вопросы, как в оригинале
-    # Например:
-    query = input("Введите поисковый запрос (или нажмите Enter для пропуска): ")
-    if query:
-        results = engine.search(query, k=3)
-        for r in results:
-            print(f"{r['book_name']} (chunk {r['chunk_id']}) – сходство: {r['similarity_score']:.4f}")
-            print(r['text'][:200] + "...\n")
+        # 4. Тестируем поиск фрагментов
+        print("\n>>> Поиск фрагментов по запросу 'Наташа Ростова' (k=2):")
+        results = engine.search("Наташа Ростова", k=2)
+        for i, r in enumerate(results):
+            print(f"\n{i+1}. [{r['book_name']} (chunk {r['chunk_id']})] "
+                  f"сходство: {r['similarity_score']:.4f}")
+            print(f"   Текст: {r['text'][:100]}...")
 
-    question = input("Введите вопрос (или нажмите Enter для пропуска): ")
-    if question:
-        answer_data = engine.answer(question, k=3)
-        print(f"Ответ: {answer_data['answer']} (уверенность: {answer_data['score']:.4f})")
+        # 5. Тестируем ответ на вопрос
+        print("\n>>> Ответ на вопрос: 'На ком женился Пьер Безухов?' (k=2)")
+        answer_data = engine.answer("На ком женился Пьер Безухов?", k=2, score_threshold=0.01)
+        print(f"Лучший ответ: '{answer_data['answer']}' (уверенность: {answer_data['score']:.4f})")
         print("Источники:")
-        for ch in answer_data['chunks']:
-            if ch.get('extracted_answer'):
-                print(f"  - {ch['book_name']} (chunk {ch['chunk_id']}): '{ch['extracted_answer']}' (score: {ch['answer_score']:.4f})")
+        for i, ch in enumerate(answer_data['chunks']):
+            print(f"  {i+1}. [{ch['book_name']} (chunk {ch['chunk_id']})] "
+                  f"ответ: '{ch.get('extracted_answer', '')}' (score: {ch.get('answer_score', 0):.4f})")
+
+        # 6. Тестируем вопрос, на который нет ответа
+        print("\n>>> Ответ на вопрос: 'Сколько лет было Анне Карениной?'")
+        answer_data2 = engine.answer("Сколько лет было Анне Карениной?", k=1, score_threshold=0.1)
+        print(f"Ответ: '{answer_data2['answer']}' (уверенность: {answer_data2['score']:.4f})")
+        if not answer_data2['answer']:
+            print("   (пустой ответ, как и ожидалось)")
+
+        print("\n" + "=" * 60)
+        print("Все тесты выполнены успешно.")
+        print("=" * 60)
+
+    finally:
+        # Удаляем временную директорию
+        shutil.rmtree(tmp_dir)
+        print(f"\nВременные файлы удалены: {tmp_dir}")
+
+
+if __name__ == "__main__":
+    main()
