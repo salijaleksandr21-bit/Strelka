@@ -34,7 +34,7 @@ def count_tokens(text: str) -> int:
 def split_into_chunks(
     text: str,
     book_name: str,
-    chunk_size: int = 400,
+    chunk_size: int = 200,
     overlap: int = 50
 ) -> list[dict]:
     #разбивает текст на чанки с перекрытием, сохраняя границы предложений.

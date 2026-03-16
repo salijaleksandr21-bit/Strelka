@@ -91,7 +91,7 @@ class BookManager:
         logger.info(f"Книга '{book_name}' (id: {book_id}) успешно добавлена.")
         return book_id
     
-    def add_book_from_file(self, book_name: str, file_path: str, book_id: Optional[str] = None, chunk_size: int = 400, overlap: int = 50) -> str:
+    def add_book_from_file(self, book_name: str, file_path: str, book_id: Optional[str] = None, chunk_size: int = 200, overlap: int = 30) -> str:
         """
         Добавляет книгу из исходного текстового файла, используя модуль processing.
         Автоматически определяет кодировку через встроенную функцию read_file.

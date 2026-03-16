@@ -18,9 +18,9 @@ if root is None:
     sys.exit(1)
 sys.path.insert(0, root)
 
-from src.data_processing.file_reader import read_file
-from src.data_processing.chunker import split_into_chunks
-from src.data_processing.utils import save_chunks_to_json
+from src.processing.file_reader import read_file
+from src.processing.chunker import split_into_chunks
+from src.processing.utils import save_chunks_to_json
 
 def main():
     file_path = os.path.join('data', 'sample_book.txt')
