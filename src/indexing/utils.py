@@ -32,73 +32,46 @@ def load_chunks_from_json(json_path: str) -> List[Dict[str, Any]]:
     return chunks
 
 
-def save_metadata(metadata: List[Dict[str, Any]], path: str) -> None:
+def save_metadata(metadata: list, path: str):
+    """Сохраняет метаданные в JSON."""
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(metadata, f, ensure_ascii=False, indent=2)
+
+
+def load_metadata(path: str) -> list:
     """
-    Сохраняет метаданные (список чанков) в файл pickle.
-
-    Args:
-        metadata: Список словарей с метаданными.
-        path: Путь для сохранения (например, 'data/index/metadata.pkl').
+    Загружает метаданные из файла (JSON or pickle).
+    Сначала пробует pickle, затем JSON.
     """
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'wb') as f:
-        pickle.dump(metadata, f)
-    logger.info(f"Метаданные сохранены в {path}")
+    try:
+        with open(path, 'rb') as f:
+            return pickle.load(f)
+    except (pickle.UnpicklingError, EOFError, AttributeError, ImportError):
+        # Если не pickle, пробуем JSON
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
 
 
-def load_metadata(path: str) -> List[Dict[str, Any]]:
+def build_and_save_index(chunks_path: str, output_dir: str, embedding_model_name: str = 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2', batch_size: int = 32):
+    """Строит индекс FAISS для чанков и сохраняет в output_dir.
+    Сохраняет индекс как faiss.index и метаданные как metadata.json.
     """
-    Загружает метаданные из pickle-файла.
+    os.makedirs(output_dir, exist_ok=True)
 
-    Args:
-        path: Путь к файлу метаданных.
-
-    Returns:
-        Список чанков.
-    """
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Файл метаданных не найден: {path}")
-    with open(path, 'rb') as f:
-        metadata = pickle.load(f)
-    logger.info(f"Метаданные загружены из {path}, {len(metadata)} записей")
-    return metadata
-
-
-def build_and_save_index(
-    chunks_path: str,
-    index_dir: str,
-    embedding_model_name: str = 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
-    batch_size: int = 32,
-    device: Optional[str] = None,
-) -> None:
-    """
-    Высокоуровневая функция для построения индекса и сохранения его на диск.
-
-    Args:
-        chunks_path: Путь к JSON-файлу с чанками.
-        index_dir: Директория для сохранения индекса и метаданных.
-        embedding_model_name: Название модели эмбеддингов.
-        batch_size: Размер батча при вычислении эмбеддингов.
-        device: Устройство для модели.
-    """
     # Загружаем чанки
     chunks = load_chunks_from_json(chunks_path)
-
-    # Извлекаем тексты для эмбеддингов
     texts = [chunk['text'] for chunk in chunks]
 
-    # Загружаем модель эмбеддингов
-    model = get_embedding_model(embedding_model_name, device=device)
-
     # Вычисляем эмбеддинги
+    model = get_embedding_model(embedding_model_name)
     embeddings = compute_embeddings(texts, model, batch_size=batch_size, normalize=True)
 
-    # Строим индекс
+    # Строим индекс FAISS
     index = build_index(embeddings)
+    save_index(index, os.path.join(output_dir, 'faiss.index'))
 
-    # Сохраняем индекс и метаданные
-    os.makedirs(index_dir, exist_ok=True)
-    save_index(index, os.path.join(index_dir, 'faiss.index'))
-    save_metadata(chunks, os.path.join(index_dir, 'metadata.pkl'))
+    # Сохраняем метаданные в JSON (только нужные поля)
+    metadata = [{"text": c["text"], "book_name": c["book_name"], "chunk_id": c["chunk_id"]} for c in chunks]
+    save_metadata(metadata, os.path.join(output_dir, 'metadata.json'))
 
-    logger.info(f"Индексация завершена. Индекс и метаданные сохранены в {index_dir}")
+    logger.info(f"Индекс и метаданные сохранены в {output_dir}")

@@ -18,7 +18,7 @@ _QA_TOKENIZER = None
 
 @lru_cache(maxsize=1)
 def get_qa_model(
-    model_name: str = 'sad-bkt/rubert-finetuned-squad',
+    model_name: str = 'MilyaShams/rubert-russian-qa-sberquad',
     device: Optional[str] = None
 ) -> Tuple[AutoModelForQuestionAnswering, AutoTokenizer]:
     """

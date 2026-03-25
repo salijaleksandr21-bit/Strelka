@@ -13,39 +13,23 @@ from .embeddings import get_embedding_model, compute_embeddings
 from .faiss_index import load_index, search
 from .qa_model import get_qa_model, extract_answer
 from .utils import load_metadata
+from rank_bm25 import BM25Okapi
 
 logger = logging.getLogger(__name__)
 
 
 class SearchEngine:
-    """
-    Поисковый движок, основанный на FAISS и extractive QA.
-    Позволяет искать похожие чанки и отвечать на вопросы по тексту.
-    Поддерживает гибридный режим с генерацией через Llama (локально через Ollama).
-    """
 
     def __init__(
         self,
         index_dir: str,
-        embedding_model_name: str = 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
-        qa_model_name: str = 'sad-bkt/rubert-finetuned-squad',
-        llama_model_name: str = 'llama3.1:8b-instruct-q6_K',
+        embedding_model_name: str = 'intfloat/multilingual-e5-large',
+        qa_model_name: str = 'MilyaShams/rubert-russian-qa-sberquad',
+        llama_model_name: str = 'qwen2.5:7b',
         llama_temperature: float = 0.5,
         device: Optional[str] = None,
         lazy_loading: bool = True,
     ):
-        """
-        Инициализация SearchEngine.
-
-        Args:
-            index_dir: Директория, где лежат faiss.index и metadata.pkl.
-            embedding_model_name: Название модели эмбеддингов.
-            qa_model_name: Название extractive QA модели.
-            llama_model_name: Название модели Llama в Ollama (например, 'llama3.1:8b-instruct-q6_K').
-            llama_temperature: Температура генерации для Llama (0.0 – детерминированно, выше – креативнее).
-            device: Устройство для моделей ('cpu', 'cuda') или None (авто).
-            lazy_loading: Если True, модели загружаются только при первом обращении.
-        """
         self.index_dir = index_dir
         self.embedding_model_name = embedding_model_name
         self.qa_model_name = qa_model_name
@@ -54,15 +38,30 @@ class SearchEngine:
         self.device = device
         self.lazy_loading = lazy_loading
 
-        # Загружаем индекс и метаданные сразу
+        # Загружаем индекс и метаданные
         index_path = os.path.join(index_dir, 'faiss.index')
-        metadata_path = os.path.join(index_dir, 'metadata.pkl')
+        metadata_path = os.path.join(index_dir, 'metadata.json')
+
+        # Если faiss.index не существует, пробуем index.faiss
+        if not os.path.exists(index_path):
+            alt_index = os.path.join(index_dir, 'index.faiss')
+            if os.path.exists(alt_index):
+                index_path = alt_index
+
+        # Если metadata.json не существует, пробуем metadata.pkl
+        if not os.path.exists(metadata_path):
+            alt_metadata = os.path.join(index_dir, 'metadata.pkl')
+            if os.path.exists(alt_metadata):
+                metadata_path = alt_metadata
+
         if not os.path.exists(index_path) or not os.path.exists(metadata_path):
             raise FileNotFoundError(f"Индекс или метаданные не найдены в {index_dir}. Сначала выполните build_and_save_index().")
+
         self.index = load_index(index_path)
+        print(f"Размерность индекса: {self.index.d}") 
+
         self.metadata = load_metadata(metadata_path)
 
-        # Модели будут загружены по требованию
         self._embedding_model = None
         self._qa_model = None
         self._qa_tokenizer = None
@@ -75,32 +74,23 @@ class SearchEngine:
         return self._embedding_model
 
     def _get_qa_model(self):
-        """Ленивая загрузка QA модели и токенизатора."""
         if self._qa_model is None:
             logger.info("Загрузка QA модели...")
             self._qa_model, self._qa_tokenizer = get_qa_model(self.qa_model_name, device=self.device)
         return self._qa_model, self._qa_tokenizer
 
     def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
-        """
-        Поиск k наиболее релевантных чанков по текстовому запросу.
-
-        Args:
-            query: Текстовый запрос.
-            k: Количество результатов.
-
-        Returns:
-            Список чанков (словарей с метаданными), отсортированный по релевантности.
-        """
         model = self._get_embedding_model()
         # Вычисляем эмбеддинг запроса (один текст)
-        query_emb = compute_embeddings([query], model, normalize=True)[0]  # shape: (dim,)
+        dim_model = model.get_sentence_embedding_dimension()
+        print(f"Размерность модели: {dim_model}")
+        query_emb = compute_embeddings([query], model, normalize=True)[0] 
         distances, indices = search(query_emb, self.index, k=k)
 
         results = []
         for idx, dist in zip(indices, distances):
             chunk = self.metadata[idx].copy()
-            chunk['similarity_score'] = float(dist)  # косинусное сходство (нормализовано)
+            chunk['similarity_score'] = float(dist)  # косинусное сходство 
             results.append(chunk)
         return results
 
@@ -111,23 +101,7 @@ class SearchEngine:
         score_threshold: float = 0.1,
         max_context_length: Optional[int] = None
     ) -> Dict[str, Any]:
-        """
-        Ответить на вопрос, используя extractive QA по найденным чанкам.
-
-        Args:
-            question: Вопрос.
-            k: Количество чанков для рассмотрения.
-            score_threshold: Минимальная уверенность ответа (если ниже, ответ считается пустым).
-            max_context_length: Максимальная длина контекста в токенах (обрезать, если превышает).
-                                 Если None, используется максимальная длина модели.
-
-        Returns:
-            Словарь с полями:
-                'answer': извлечённый текст (или пустая строка).
-                'score': уверенность лучшего ответа.
-                'chunks': список использованных чанков (с метаданными и scores ответов).
-                'best_chunk': индекс лучшего чанка (или None).
-        """
+        
         # Сначала ищем релевантные чанки
         chunks = self.search(question, k=k)
 
@@ -174,12 +148,58 @@ class SearchEngine:
             'chunks': enriched_chunks,
             'best_chunk': best_chunk_idx if best_chunk_idx >= 0 else None
         }
+    
+    def hybrid_search(
+        self,
+        query: str,
+        k_faiss: int = 50,
+        k_final: int = 7,
+        alpha: float = 0.7,
+        use_reciprocal_rank: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        Гибридный поиск: FAISS (семантический) + BM25 (лексический).
+        Возвращает список чанков с полем hybrid_score.
+        """
+        # 1. Получаем топ‑k_faiss от FAISS
+        faiss_chunks = self.search(query, k=k_faiss)
+        if not faiss_chunks:
+            return []
 
-    def _call_llama(self, prompt: str, max_tokens: int = 512) -> Optional[str]:
-        """
-        Отправляет запрос к локальному серверу Ollama и возвращает ответ.
-        В случае ошибки возвращает None.
-        """
+        # 2. Готовим корпус для BM25 из этих чанков
+        corpus = [chunk['text'].split() for chunk in faiss_chunks]
+        bm25 = BM25Okapi(corpus)
+        tokenized_query = query.split()
+        bm25_scores = list(bm25.get_scores(tokenized_query))
+
+        # Нормализуем BM25-оценки 
+        max_bm25 = max(bm25_scores) if bm25_scores else 1
+        norm_bm25 = [s / max_bm25 if max_bm25 > 0 else 0 for s in bm25_scores]
+
+        # 3. Комбинируем оценки
+        combined = []
+        for i, chunk in enumerate(faiss_chunks):
+            faiss_score = chunk.get('similarity_score', 0.0)
+            if use_reciprocal_rank:
+                k_rrf = 60
+                faiss_rank = i + 1
+                # Ранг BM25 среди всех чанков
+                sorted_indices = sorted(range(len(bm25_scores)), key=lambda x: bm25_scores[x], reverse=True)
+                bm25_rank = sorted_indices.index(i) + 1 if i in sorted_indices else len(bm25_scores) + 1
+                combined_score = (1 / (k_rrf + faiss_rank)) + (1 / (k_rrf + bm25_rank))
+            else:
+                combined_score = alpha * faiss_score + (1 - alpha) * norm_bm25[i]
+            combined.append((combined_score, chunk))
+
+        combined.sort(reverse=True, key=lambda x: x[0])
+        results = []
+        for score, chunk in combined[:k_final]:
+            chunk_copy = chunk.copy()
+            chunk_copy['hybrid_score'] = score
+            results.append(chunk_copy)
+        return results
+
+    def _call_llama(self, prompt: str, max_tokens: int = 512, temperature: float = 0.3) -> Optional[str]:
         try:
             response = requests.post(
                 'http://localhost:11434/api/generate',
@@ -189,7 +209,7 @@ class SearchEngine:
                     'stream': False,
                     'options': {
                         'num_predict': max_tokens,
-                        'temperature': self.llama_temperature
+                        'temperature': temperature
                     }
                 },
                 timeout=60
@@ -215,7 +235,6 @@ class SearchEngine:
                 selected.append(ctx)
                 total_chars += text_len
             else:
-                # Можно попробовать обрезать последний, но это сложнее; пока просто остановимся
                 break
         return selected
 
@@ -225,121 +244,67 @@ class SearchEngine:
             return False
         if answer.count('!') > 2 or answer.count('?') > 2:
             return False
-        # Хотя бы одно слово из вопроса должно присутствовать в ответе (грубо)
         q_words = set(question.lower().split())
         a_words = set(answer.lower().split())
         if not q_words & a_words:
             return False
         return True
-
+    
     def answer_generative(
         self,
         question: str,
-        k: int = 7,
-        threshold: float = 0.3,
-        max_context_tokens: int = 6000,
-        fallback_to_extractive: bool = True
+        k: int = 5,
+        alpha: float = 0.5,         
+        temperature: float = 0.3,
+        max_context_tokens: int = 8000
     ) -> Dict[str, Any]:
-        """
-        Гибридный метод: extractive -> фильтр -> генерация через Llama.
-        Возвращает ответ и использованные источники.
+        # 1. Гибридный поиск
+        chunks = self.hybrid_search(
+            question,
+            k_faiss=100,
+            k_final=k,
+            alpha=alpha,                 
+            use_reciprocal_rank=False
+        )
+        if not chunks:
+            return {'answer': 'Не удалось найти информацию.', 'sources': [], 'used_chunks': []}
 
-        Args:
-            question: Вопрос.
-            k: Количество чанков для поиска.
-            threshold: Минимальный score extractive ответа для включения в контекст.
-            max_context_tokens: Максимальное примерное число токенов контекста для Llama.
-            fallback_to_extractive: Если True, при отсутствии валидных контекстов или ошибке Llama
-                                    возвращается лучший extractive ответ (через метод answer).
+        # 2. Обрезаем контекст по токенам
+        contexts = self._truncate_context(chunks, max_context_tokens)
 
-        Returns:
-            Словарь с полями:
-                'answer': сгенерированный ответ (строка).
-                'sources': список отобранных источников с извлечёнными ответами.
-                'used_chunks': все найденные чанки (до фильтрации).
-                'fallback_reason' (опционально): причина использования fallback.
-        """
-        # 1. Поиск чанков
-        chunks = self.search(question, k=k)
-
-        # 2. Извлечение и фильтрация ответов extractive моделью
-        model, tokenizer = self._get_qa_model()
-        valid_contexts = []
-
-        for chunk in chunks:
-            ans_data = extract_answer(question, chunk['text'], model, tokenizer)
-            if ans_data['score'] >= threshold and self._is_plausible(ans_data['answer'], question):
-                valid_contexts.append({
-                    'text': chunk['text'],
-                    'extracted_answer': ans_data['answer'],
-                    'score': ans_data['score'],
-                    'book_name': chunk['book_name'],
-                    'chunk_id': chunk['chunk_id']
-                })
-
-        # 3. Если нет подходящих контекстов – fallback или возврат сообщения
-        if not valid_contexts:
-            if fallback_to_extractive:
-                fallback = self.answer(question, k=k, score_threshold=threshold)
-                return {
-                    'answer': fallback['answer'],
-                    'sources': [],
-                    'used_chunks': chunks,
-                    'fallback_reason': 'no_valid_contexts'
-                }
-            else:
-                return {
-                    'answer': 'Не удалось найти достоверную информацию в тексте.',
-                    'sources': [],
-                    'used_chunks': chunks
-                }
-
-        # 4. Обрезаем контекст по токенам
-        valid_contexts = self._truncate_context(valid_contexts, max_context_tokens)
-
-        # 5. Формирование промпта для Llama
+        # 3. Формируем промпт
         sources_text = "\n\n".join([
-            f"[Источник {i+1} из книги '{ctx['book_name']}']\n{ctx['text']}"
-            for i, ctx in enumerate(valid_contexts)
+            f"[Источник {i+1}]\n{ctx['text']}"
+            for i, ctx in enumerate(contexts)
         ])
 
-        prompt = f"""Ты — эксперт по анализу художественных текстов. Ответь на вопрос, используя ТОЛЬКО информацию из предоставленных источников ниже. Не добавляй ничего от себя.
+        prompt = f"""Ты — эксперт по анализу художественных текстов. Ответь на вопрос, используя ТОЛЬКО информацию из предоставленных источников ниже.
+        
+    Источники:
+    {sources_text}
 
-Источники:
-{sources_text}
+    Вопрос: {question}
 
-Вопрос: {question}
+    Инструкции:
+    - Если ответ не содержится в одном источнике, но может быть собран из нескольких — сделай это, приведи соответствующие цитаты.
+    - Если ответа нет в источниках — скажи "Я не могу найти ответ на этот вопрос в предоставленных текстах".
+    - Всегда указывай, из какого источника ты взял информацию (например, [Источник 1]).
+    - Отвечай на русском языке.
 
-Инструкции:
-- Если источники содержат ответ — дай точный, развёрнутый ответ, основанный на них.
-- Если ответа нет в источниках — скажи "Я не могу найти ответ на этот вопрос в предоставленных текстах".
-- Всегда указывай, из какого источника ты взял информацию (например, [Источник 1]).
-- Не придумывай факты и не используй внешние знания.
+    Ответ:"""
 
-Ответ:"""
+        # 4. Генерация через Ollama с переданной температурой
+        generated = self._call_llama(prompt, max_tokens=512, temperature=temperature)
 
-        # 6. Генерация через Llama
-        generated_answer = self._call_llama(prompt)
-
-        # 7. Обработка ошибки генерации
-        if generated_answer is None:
-            if fallback_to_extractive:
-                fallback = self.answer(question, k=k, score_threshold=threshold)
-                return {
-                    'answer': fallback['answer'],
-                    'sources': valid_contexts,
-                    'used_chunks': chunks,
-                    'fallback_reason': 'llama_error'
-                }
-            else:
-                return {
-                    'answer': '[Ошибка генерации ответа]',
-                    'sources': valid_contexts,
-                    'used_chunks': chunks
-                }
+        if generated is None:
+            return {
+                'answer': 'Ошибка генерации ответа. Проверьте, запущен ли Ollama и загружена ли модель.',
+                'sources': [],
+                'used_chunks': chunks
+            }
 
         return {
-            'answer': generated_answer,
-            'sources': valid_contexts,
+            'answer': generated,
+            'sources': [],
             'used_chunks': chunks
         }

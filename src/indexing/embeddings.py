@@ -18,7 +18,7 @@ _EMBEDDING_MODEL = None
 
 @lru_cache(maxsize=1)
 def get_embedding_model(
-    model_name: str = 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
+    model_name: str = 'intfloat/multilingual-e5-large',
     device: Optional[str] = None
 ) -> SentenceTransformer:
     """

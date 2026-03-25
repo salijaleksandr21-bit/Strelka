@@ -23,7 +23,7 @@ from src.processing.chunker import split_into_chunks
 from src.processing.utils import save_chunks_to_json
 
 def main():
-    file_path = os.path.join('data', 'sample_book.txt')
+    file_path = os.path.join('data', '.txt')
     if not os.path.exists(file_path):
         print(f"Файл {file_path} не найден. Создайте его для тестирования.")
         return
