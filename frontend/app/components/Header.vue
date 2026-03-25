@@ -1,6 +1,6 @@
 <template>
     <nav>
         <slot />
-        <img src="~/assets/images/logo.png" alt="Логотип Технострелка">
+        <a href="/"><img src="~/assets/images/logo.png" alt="Логотип Технострелка"></a>
     </nav>
 </template>

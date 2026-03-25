@@ -4,7 +4,7 @@ from sqlalchemy import select, delete
 from models import book
 from database import models, driver
 from uuid import uuid4
-
+from os import makedirs, path
 
 router = APIRouter(prefix="/book", tags=["Источники"])
 
@@ -34,6 +34,7 @@ async def create_route(
     if content.size > 20 * 1024 * 1024:
         raise HTTPException(403, detail="Загружайте файл размером меньше 20 MB!")
     filename = f"books/{uuid4()}.txt"
+    makedirs(path.dirname(filename), exist_ok=True)
     with open(filename, "wb") as file:
         file.write(content.file.read())
     new_book = models.Book(name=name, filename=filename)
