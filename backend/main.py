@@ -1,6 +1,6 @@
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
-from routes import MODULES
+from routes import search, book
 
 
 app = FastAPI(
@@ -19,5 +19,5 @@ app.add_middleware(
 )
 
 
-for module in MODULES:
+for module in (search, book):
     app.include_router(module.router)

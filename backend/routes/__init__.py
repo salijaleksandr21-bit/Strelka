@@ -1,3 +1,6 @@
 from . import search, book
 
-MODULES = (search, book)
+__all__ = [
+    "search",
+    "book"
+]

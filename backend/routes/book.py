@@ -5,9 +5,10 @@ from models import book
 from database import models, driver
 from uuid import uuid4
 from os import makedirs, path
+from indexing.book_manager import BookManager
 
 router = APIRouter(prefix="/book", tags=["Источники"])
-
+manager = BookManager("/books")
 
 @router.get(
     path="/library", 
@@ -38,6 +39,7 @@ async def create_route(
     with open(filename, "wb") as file:
         file.write(content.file.read())
     new_book = models.Book(name=name, filename=filename)
+    manager.add_book_from_file(name, filename, new_book.id)
     db.add(new_book)
     await db.commit()
     return new_book

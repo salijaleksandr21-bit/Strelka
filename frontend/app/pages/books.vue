@@ -13,12 +13,12 @@
               :id="book.id"
               :title="book.name"
             />
-            <div class="card alt">
+            <div class="book alt">
               <h2>Загрузить книгу</h2>
                         
               <form @submit.prevent="uploadBook" class="upload-form">
                 <div class="form-group">
-                  <label for="bookName">Название книги</label>
+                  <label for="bookName">Название книги</label><br>
                   <input
                     id="bookName"
                     v-model="bookName"
@@ -29,7 +29,7 @@
                 </div>
             
                 <div class="form-group">
-                  <label for="bookFile">Файл (.txt)</label>
+                  <label for="bookFile">Файл (.txt)</label><br>
                   <input
                     id="bookFile"
                     ref="fileInput"
@@ -50,6 +50,7 @@
               </form>
             </div>
         </div>
+        
     </div>
 </template>
 
@@ -66,7 +67,6 @@ const uploading = ref(false)
 const uploadError = ref(null)
 const uploadSuccess = ref(false)
 
-// 📥 Загрузка списка книг при монтировании
 onMounted(async () => {
   try {
     const res = await fetch('http://localhost:8000/book/library')
@@ -133,10 +133,8 @@ async function uploadBook() {
     const data = await res.json()
     uploadSuccess.value = true
 
-    // ✅ Обновляем список книг после успешной загрузки
     books.value.push(data)
 
-    // Очистка формы
     bookName.value = ''
     selectedFile.value = null
     document.getElementById('bookFile')?.setAttribute('value', '')

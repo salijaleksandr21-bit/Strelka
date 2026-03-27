@@ -30,14 +30,14 @@ services:
       - -c 
       - "python database/main.py && uvicorn main:app --host ${WEB_HOST} --port ${API_PORT}"
 
-  # frontend:
-  #   build: ./frontend
-  #   depends_on:
-  #     - db
-  #     - backend
-  #   environment:
-  #     - FRONT_PORT=3000
-  #     - API_URL=http://localhost:${API_PORT}/
-  #   ports:
-  #     - "${FRONT_PORT}:${FRONT_PORT}"
-  #   command: npm run dev
+  frontend:
+    build: ./frontend
+    depends_on:
+      - db
+      - backend
+    environment:
+      - FRONT_PORT=3000
+      - API_URL=http://localhost:${API_PORT}/
+    ports:
+      - "${FRONT_PORT}:${FRONT_PORT}"
+    command: npm run dev

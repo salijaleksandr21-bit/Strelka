@@ -12,11 +12,9 @@
         </a>
       </div>
 
-      <div class="btn">
-        <button @click="handleDelete" class="delete-btn">
+      <button class="btn">
           <img src="~/assets/images/delete.svg" alt="Удалить" class="icon" />
-        </button>
-      </div>
+      </button>
     </div>
   </div>
 </template>
