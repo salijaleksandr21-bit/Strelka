@@ -160,6 +160,7 @@ def main():
             print("3. Настройки (для текущей книги)")
             print("4. Выбрать другую книгу")
             print("0. Вернуться в главное меню")
+        
 
             cmd = input("\nВыберите действие: ").strip()
 
@@ -224,9 +225,25 @@ def main():
                 input("\nНажмите Enter для продолжения...")
 
             elif cmd == '4':
-                current_book = None
-                current_engine = None
-                continue
+                books = manager.list_books()
+                if not books:
+                    print("Нет книг. Сначала добавьте книгу.")
+                    input("\nНажмите Enter для продолжения...")
+                    continue
+                print_books(books)
+                try:
+                    idx = int(input("Введите номер книги для выбора: ").strip()) - 1
+                    if idx < 0 or idx >= len(books):
+                        print("Неверный номер.")
+                        input("\nНажмите Enter для продолжения...")
+                        continue
+                    current_book = books[idx]
+                    current_engine = manager.get_engine(current_book['id'])
+                    print(f"✅ Выбрана книга: {current_book['name']}")
+                except Exception as e:
+                    print(f"❌ Ошибка: {e}")
+                    input("\nНажмите Enter для продолжения...")
+
 
             elif cmd == '0':
                 current_book = None
